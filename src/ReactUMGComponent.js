@@ -55,6 +55,11 @@ ReactUMGComponent.Mixin = {
       if (this._currentElement.props.$unlink) {
         this._currentElement.props.$unlink(this.ueobj);
       }
+      for (var key in this._currentElement.props) {
+        if (typeof this._currentElement.props[key] === 'function') {
+          this.updateProperty(this.ueobj, null, key);
+        }
+      }
       this.ueobj.RemoveFromParent(); 
     }      
     
@@ -90,18 +95,18 @@ ReactUMGComponent.Mixin = {
       this._currentElement,
       cls => {
         var widget = new cls(outer);
-        var props = this._currentElement.props
+        var props = this._currentElement.props;
         for (var key in props) {
           this.updateProperty(widget, props[key], key);
         }
         if (widget instanceof JavascriptWidget) {
-          widget.AddChild(new SizeBox(outer))
+          widget.AddChild(new SizeBox(outer));
         }
         if (umgRoot['AddChild'] != null) {
           var slot = umgRoot.AddChild(widget);
           if (slot)
             slot.Content.Slot = slot;
-          return widget
+          return widget;
         }
         else {
           console.error('cannot add child', umgRoot);

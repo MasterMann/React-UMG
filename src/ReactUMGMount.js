@@ -109,8 +109,9 @@ const ReactUMGMount = {
     }
     const nextComponent = instantiateReactComponent(nextElement);
 
-    if (!umgWidget.component) 
+    if (!umgWidget.component) {
       umgWidget.component = nextComponent;
+    }
   
     ReactUpdates.batchedUpdates(() => {
       // Two points to React for using object pooling internally and being good
@@ -140,14 +141,15 @@ const ReactUMGMount = {
 
     // needed for react-devtools
     ReactUMGMount._instancesByReactRootID[rootId] = nextComponent;
-    NodeMap[nextComponent] = umgWidget;
+    NodeMap.set(nextComponent, umgWidget);
  
-    if (umgWidget.OnDestroy) {
-      umgWidget.OnDestroy.Add(() => {
+    umgWidget.JavascriptContext = Context;
+    umgWidget.proxy = {
+      OnDestroy: (bReleaseChildren) => {
         if (nextComponent.getPublicInstance()) {
           ReactUMGMount.unmountComponent(nextComponent.getPublicInstance())                            
         }
-      });
+      }
     }
 
     return nextComponent.getPublicInstance();
@@ -205,26 +207,35 @@ const ReactUMGMount = {
 
     return component.getPublicInstance();
   },
-  unmountComponent(instance) {
-    const internalInstance = ReactInstanceMap.get(instance);
-    if (internalInstance) {
-      let widget = ReactUMGMount.findNode(instance)
-      if (widget) {
-        const rootId = ReactInstanceHandles.createReactRootID(widget.reactUmgId);
-        delete UmgRoots[rootId];
-        delete ReactUMGMount._instancesByReactRootID[rootId];
-      } 
-      delete NodeMap[instance];
-      internalInstance.unmountComponent();
+  unmountComponent(publicInstance) {
+    const internalInstance = ReactUMGMount.getInternalInstance(publicInstance);
+    let widget = NodeMap.get(internalInstance);
+    if (widget) {
+      const rootId = ReactInstanceHandles.createReactRootID(widget.reactUmgId);
+      delete UmgRoots[rootId];
+      delete ReactUMGMount._instancesByReactRootID[rootId];
+      NodeMap.delete(internalInstance);
     }
+
+    internalInstance.unmountComponent();
   },
-  findNode(instance) {
-    return NodeMap[instance]
-  }, 
+  getInternalInstance(publicInstance) {
+    // Reverse of ReactCompositeComponent(Wrapper).getPublicInstance
+    let internalInstance = ReactInstanceMap.get(publicInstance);
+    if (!internalInstance) {
+      // Reverse of ReactUMGComponent.getPublicInstance
+      internalInstance = publicInstance;
+    }
+    return internalInstance;
+  },
+  findNode(publicInstance) {
+    const internalInstance = ReactUMGMount.getInternalInstance(publicInstance)
+    return internalInstance && NodeMap.get(internalInstance);
+  },
   wrap(nextElement, outer = Root.GetEngine ? JavascriptLibrary.CreatePackage(null,'/Script/Javascript') : GWorld) {
     let widget = Root.GetEngine ? new JavascriptWidget(outer) : GWorld.CreateWidget(JavascriptWidget);
-    let instance = ReactUMGMount.render(nextElement, widget);
-    return ReactUMGMount.findNode(instance) 
+    let publicInstance = ReactUMGMount.render(nextElement, widget);
+    return ReactUMGMount.findNode(publicInstance);
   }
 };
 
